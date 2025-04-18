@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 
-API_KEY = '0K46WI6OG3S5D4KO'
+API_KEY = 'UYI5BMKI97Y4DGIB'
 
 # === Get Full Stock History ===
 def get_stock_data(symbol='AAPL'):
