@@ -19,46 +19,54 @@ def get_stock_data(symbol='AAPL'):
     df = df.sort_index()
     return df
 
-# === Streamlit UI ===
-st.title("Elliott Wave Pattern Visualizer (HKCM Style)")
-symbol = st.text_input("Enter Stock Symbol", value='AAPL')
+# === Detect Swings ===
+def find_swings(prices, window=1):
+    swings = []
+    for i in range(window, len(prices) - window):
+        is_high = all(prices[i] > prices[i - j] and prices[i] > prices[i + j] for j in range(1, window + 1))
+        is_low = all(prices[i] < prices[i - j] and prices[i] < prices[i + j] for j in range(1, window + 1))
+        if is_high or is_low:
+            swings.append(i)
+    return swings
 
+# === Streamlit UI ===
+st.title("Elliott Wave Visualizer with Live Data")
+
+symbol = st.text_input("Enter Stock Symbol", value='AAPL')
 df = get_stock_data(symbol)
 
 if not df.empty:
+    swings = find_swings(df['close'].tolist(), window=2)
+
     fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['close'], mode='lines', name='Close Price', line=dict(width=2)))
 
-    # === Plot price ===
-    fig.add_trace(go.Scatter(x=df.index, y=df['close'], mode='lines', name='Close Price'))
+    # Draw wave lines
+    for i in range(len(swings) - 1):
+        x0, y0 = df.index[swings[i]], df['close'].iloc[swings[i]]
+        x1, y1 = df.index[swings[i + 1]], df['close'].iloc[swings[i + 1]]
+        fig.add_trace(go.Scatter(
+            x=[x0, x1],
+            y=[y0, y1],
+            mode='lines+text',
+            text=[f"Wave {i+1}", ""],
+            textposition="top center",
+            line=dict(dash='dot', width=2),
+            name=f"Wave {i+1}"
+        ))
 
-    # === Simulated Elliott Wave Boxes (manually defined) ===
-    # You'll adjust these indices based on real swing highs/lows for now
-    wave_boxes = {
-        "Wave 1": (100, 140),
-        "Wave 2": (141, 170),
-        "Wave 3": (171, 220),
-        "Wave 4": (221, 250),
-        "Wave 5": (251, 290)
-    }
+    # Mark swing points
+    for idx in swings:
+        fig.add_trace(go.Scatter(
+            x=[df.index[idx]], y=[df['close'].iloc[idx]],
+            mode='markers',
+            marker=dict(color='orange', size=8),
+            name='Swing'
+        ))
 
-    colors = ['LightGreen', 'LightCoral', 'LightBlue', 'Khaki', 'Thistle']
-    for i, (label, (start_idx, end_idx)) in enumerate(wave_boxes.items()):
-        if end_idx < len(df):
-            start_date = df.index[start_idx]
-            end_date = df.index[end_idx]
-            low = df['close'].iloc[start_idx:end_idx].min()
-            high = df['close'].iloc[start_idx:end_idx].max()
-            fig.add_shape(type='rect',
-                          x0=start_date, x1=end_date,
-                          y0=low, y1=high,
-                          fillcolor=colors[i % len(colors)],
-                          opacity=0.3, line_width=0)
-            fig.add_annotation(text=label, x=start_date, y=high, showarrow=False, font=dict(size=12, color="black"))
-
-    fig.update_layout(title=f"{symbol} - Elliott Wave Zones",
-                      xaxis_title="Date", yaxis_title="Price",
-                      showlegend=False)
+    fig.update_layout(title=f"{symbol} - Elliott Wave Pattern Detection",
+                      xaxis_title="Date", yaxis_title="Price")
     st.plotly_chart(fig)
 
 else:
-    st.error("Could not retrieve data. Try a different symbol or wait a bit.") 
+    st.error("Could not retrieve data. Try another symbol or wait a bit.")
